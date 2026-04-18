@@ -1,0 +1,914 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+<title>Juice Shop — Vulnerability Scanner</title>
+<link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@400;700;900&family=JetBrains+Mono:wght@300;400;600&display=swap" rel="stylesheet"/>
+
+<style>
+/* ─── RESET ─────────────────────────────────────────────── */
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+
+:root{
+  --bg:      #03040d;
+  --surface: #080b18;
+  --card:    #0c1020;
+  --border:  #141830;
+  --mg:      #ff00cc;   /* magenta */
+  --cy:      #00ffee;   /* cyan    */
+  --text:    #7a8aaa;
+  --bright:  #ddeeff;
+  --dim:     #2a3050;
+  --green:   #00ffaa;
+  --warn:    #ffaa00;
+  --err:     #ff3355;
+  --font-h:  'Orbitron', sans-serif;
+  --font-m:  'JetBrains Mono', monospace;
+}
+
+html,body{
+  min-height:100vh;
+  background:var(--bg);
+  color:var(--text);
+  font-family:var(--font-m);
+  font-size:13px;
+  overflow-x:hidden;
+}
+
+/* ─── ANIMATED HEX GRID BG ──────────────────────────────── */
+body::before{
+  content:'';
+  position:fixed;
+  inset:0;
+  background-image:
+    linear-gradient(rgba(0,255,238,0.03) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(0,255,238,0.03) 1px, transparent 1px);
+  background-size:40px 40px;
+  animation:gridShift 20s linear infinite;
+  pointer-events:none;
+  z-index:0;
+}
+@keyframes gridShift{
+  0%{background-position:0 0;}
+  100%{background-position:40px 40px;}
+}
+
+/* scanline */
+body::after{
+  content:'';
+  position:fixed;
+  inset:0;
+  background:repeating-linear-gradient(
+    0deg, transparent, transparent 3px,
+    rgba(0,0,0,0.06) 3px, rgba(0,0,0,0.06) 4px
+  );
+  pointer-events:none;
+  z-index:1;
+}
+
+/* everything above bg */
+.wrap{position:relative;z-index:2;}
+
+/* ─── HEADER ────────────────────────────────────────────── */
+header{
+  text-align:center;
+  padding:48px 20px 36px;
+  position:relative;
+}
+
+/* top divider line */
+header::before{
+  content:'';
+  position:absolute;
+  top:0; left:50%; transform:translateX(-50%);
+  width:60%; height:1px;
+  background:linear-gradient(90deg,transparent,var(--cy),var(--mg),transparent);
+}
+
+.site-tag{
+  font-family:var(--font-m);
+  font-size:10px;
+  letter-spacing:6px;
+  color:var(--cy);
+  text-transform:uppercase;
+  margin-bottom:14px;
+  opacity:0.8;
+}
+
+.site-name{
+  font-family:var(--font-h);
+  font-size:clamp(42px,8vw,80px);
+  font-weight:900;
+  line-height:1;
+  color:var(--bright);
+  position:relative;
+  display:inline-block;
+  text-shadow:
+    0 0 30px rgba(0,255,238,0.4),
+    0 0 60px rgba(0,255,238,0.1);
+  animation:glitch 6s infinite;
+}
+
+/* glitch effect */
+.site-name::before,.site-name::after{
+  content:attr(data-text);
+  position:absolute;
+  inset:0;
+  font-family:var(--font-h);
+  font-size:inherit;
+  font-weight:900;
+}
+.site-name::before{
+  color:var(--mg);
+  clip-path:polygon(0 30%,100% 30%,100% 50%,0 50%);
+  animation:glitch-top 6s infinite;
+}
+.site-name::after{
+  color:var(--cy);
+  clip-path:polygon(0 60%,100% 60%,100% 75%,0 75%);
+  animation:glitch-bot 6s infinite;
+}
+@keyframes glitch{
+  0%,94%,100%{transform:none;}
+  95%{transform:skewX(-1deg);}
+  97%{transform:skewX(1deg);}
+}
+@keyframes glitch-top{
+  0%,94%,100%{transform:none;opacity:0;}
+  95%{transform:translate(-3px,0);opacity:0.8;}
+  96%{transform:translate(3px,0);opacity:0.8;}
+  97%{transform:none;opacity:0;}
+}
+@keyframes glitch-bot{
+  0%,94%,100%{transform:none;opacity:0;}
+  95%{transform:translate(3px,0);opacity:0.6;}
+  97%{transform:none;opacity:0;}
+}
+
+.site-sub{
+  font-family:var(--font-m);
+  font-size:11px;
+  letter-spacing:4px;
+  color:var(--mg);
+  margin-top:12px;
+  text-transform:uppercase;
+}
+
+/* pill badges row */
+.badges{
+  display:flex;
+  justify-content:center;
+  gap:10px;
+  margin-top:20px;
+  flex-wrap:wrap;
+}
+.pill{
+  font-size:9px;
+  letter-spacing:2px;
+  padding:4px 12px;
+  border:1px solid var(--dim);
+  color:var(--dim);
+  text-transform:uppercase;
+  border-radius:2px;
+}
+.pill.active-pill{
+  border-color:var(--cy);
+  color:var(--cy);
+  box-shadow:0 0 10px rgba(0,255,238,0.2);
+}
+
+/* divider */
+.divider{
+  display:flex;
+  align-items:center;
+  gap:12px;
+  padding:0 40px;
+  margin:10px 0 32px;
+  opacity:0.3;
+}
+.divider::before,.divider::after{
+  content:'';flex:1;
+  height:1px;
+  background:linear-gradient(90deg,transparent,var(--cy));
+}
+.divider::after{
+  background:linear-gradient(90deg,var(--cy),transparent);
+}
+.divider span{
+  font-size:9px;letter-spacing:3px;color:var(--cy);
+}
+
+/* ─── CARD GRID ─────────────────────────────────────────── */
+.grid{
+  display:grid;
+  grid-template-columns:repeat(auto-fit,minmax(340px,1fr));
+  gap:20px;
+  padding:0 32px 48px;
+  max-width:1400px;
+  margin:0 auto;
+}
+
+/* ─── ATTACK CARD ───────────────────────────────────────── */
+.card{
+  background:var(--card);
+  border:1px solid var(--border);
+  position:relative;
+  overflow:hidden;
+  transition:transform 0.2s, box-shadow 0.2s;
+  display:flex;
+  flex-direction:column;
+}
+.card:hover{
+  transform:translateY(-3px);
+  box-shadow:0 0 30px rgba(0,255,238,0.08);
+}
+
+/* top accent stripe */
+.card::before{
+  content:'';
+  position:absolute;
+  top:0; left:0; right:0;
+  height:2px;
+  background:linear-gradient(90deg, var(--mg), var(--cy));
+  opacity:0.7;
+}
+
+/* corner brackets */
+.card::after{
+  content:'';
+  position:absolute;
+  bottom:0; right:0;
+  width:16px; height:16px;
+  border-bottom:1px solid var(--cy);
+  border-right:1px solid var(--cy);
+  opacity:0.4;
+}
+
+.card-head{
+  padding:20px 20px 14px;
+  border-bottom:1px solid var(--border);
+  display:flex;
+  align-items:flex-start;
+  gap:14px;
+}
+
+.card-icon{
+  font-size:22px;
+  line-height:1;
+  flex-shrink:0;
+  margin-top:2px;
+}
+
+.card-info{flex:1;}
+
+.card-num{
+  font-size:9px;
+  letter-spacing:3px;
+  color:var(--mg);
+  margin-bottom:4px;
+}
+
+.card-title{
+  font-family:var(--font-h);
+  font-size:14px;
+  font-weight:700;
+  color:var(--bright);
+  letter-spacing:1px;
+  line-height:1.3;
+}
+
+.card-type{
+  font-size:9px;
+  letter-spacing:2px;
+  color:var(--cy);
+  margin-top:4px;
+  text-transform:uppercase;
+}
+
+.card-body{padding:16px 20px;flex:1;display:flex;flex-direction:column;gap:12px;}
+
+.card-desc{
+  font-size:11px;
+  line-height:1.8;
+  color:var(--text);
+  padding:10px 12px;
+  border-left:2px solid var(--mg);
+  background:rgba(255,0,204,0.03);
+}
+.card-desc code{
+  color:var(--cy);
+  font-family:var(--font-m);
+  font-size:10px;
+}
+
+/* inputs inside card */
+.field{display:flex;flex-direction:column;gap:5px;}
+.field label{
+  font-size:9px;
+  letter-spacing:2px;
+  color:var(--dim);
+  text-transform:uppercase;
+}
+.field input{
+  background:#080a14;
+  border:1px solid var(--border);
+  border-bottom:1px solid var(--cy);
+  color:var(--cy);
+  font-family:var(--font-m);
+  font-size:12px;
+  padding:8px 10px;
+  outline:none;
+  width:100%;
+  transition:all 0.2s;
+}
+.field input:focus{
+  border-color:var(--cy);
+  background:#0a0e1e;
+  box-shadow:0 4px 12px rgba(0,255,238,0.08);
+}
+.field input::placeholder{color:var(--dim);}
+
+/* execute button */
+.exec-btn{
+  padding:11px 0;
+  width:100%;
+  background:transparent;
+  border:1px solid var(--mg);
+  color:var(--mg);
+  font-family:var(--font-h);
+  font-size:12px;
+  font-weight:700;
+  letter-spacing:3px;
+  text-transform:uppercase;
+  cursor:pointer;
+  position:relative;
+  overflow:hidden;
+  transition:all 0.2s;
+  margin-top:4px;
+}
+.exec-btn::before{
+  content:'';
+  position:absolute;
+  inset:0;
+  background:linear-gradient(90deg, var(--mg), var(--cy));
+  opacity:0;
+  transition:opacity 0.2s;
+}
+.exec-btn span{position:relative;z-index:1;}
+.exec-btn:hover{
+  color:#fff;
+  box-shadow:0 0 20px rgba(255,0,204,0.4);
+}
+.exec-btn:hover::before{opacity:1;}
+.exec-btn:disabled{
+  border-color:var(--dim);
+  color:var(--dim);
+  cursor:not-allowed;
+  box-shadow:none;
+}
+.exec-btn:disabled::before{opacity:0;}
+
+/* output terminal */
+.terminal{
+  border:1px solid var(--border);
+  background:#050710;
+  margin-top:4px;
+}
+.term-bar{
+  display:flex;
+  align-items:center;
+  justify-content:space-between;
+  padding:6px 12px;
+  background:#080a18;
+  border-bottom:1px solid var(--border);
+}
+.term-dots{display:flex;gap:5px;}
+.td{width:7px;height:7px;border-radius:50%;}
+.td.r{background:#ff3b30;}
+.td.y{background:#ffcc00;}
+.td.g{background:#30d158;}
+.term-label{
+  font-size:9px;
+  letter-spacing:2px;
+  color:var(--dim);
+}
+.term-status{
+  font-size:9px;
+  letter-spacing:1px;
+  padding:1px 7px;
+  border:1px solid var(--dim);
+  color:var(--dim);
+  transition:all 0.3s;
+}
+.term-status.running{border-color:var(--warn);color:var(--warn);}
+.term-status.ok     {border-color:var(--green);color:var(--green);}
+.term-status.fail   {border-color:var(--err);color:var(--err);}
+
+.term-out{
+  padding:12px;
+  font-family:var(--font-m);
+  font-size:11px;
+  color:var(--dim);
+  min-height:90px;
+  max-height:200px;
+  overflow-y:auto;
+  white-space:pre-wrap;
+  word-break:break-all;
+  line-height:1.8;
+  transition:color 0.3s;
+}
+.term-out.running{color:var(--warn);}
+.term-out.ok     {color:var(--green);}
+.term-out.fail   {color:var(--err);}
+
+/* scrollbar */
+.term-out::-webkit-scrollbar{width:3px;}
+.term-out::-webkit-scrollbar-thumb{background:var(--mg);}
+
+/* manual steps box (video xss) */
+.steps-box{
+  border:1px solid var(--border);
+  border-left:2px solid var(--cy);
+  padding:12px 14px;
+  background:rgba(0,255,238,0.02);
+  display:none;
+  margin-top:4px;
+}
+.steps-box h4{
+  font-family:var(--font-h);
+  font-size:10px;
+  letter-spacing:2px;
+  color:var(--cy);
+  margin-bottom:10px;
+}
+.steps-box ol{padding-left:18px;}
+.steps-box li{
+  font-size:11px;
+  color:var(--text);
+  line-height:1.9;
+  margin-bottom:2px;
+}
+
+/* ─── FOOTER ────────────────────────────────────────────── */
+footer{
+  border-top:1px solid var(--border);
+  padding:12px 32px;
+  display:flex;
+  justify-content:space-between;
+  align-items:center;
+  font-size:10px;
+  color:var(--dim);
+  letter-spacing:1px;
+  position:relative;
+  z-index:2;
+}
+footer::before{
+  content:'';
+  position:absolute;
+  top:-1px; left:0; right:0; height:1px;
+  background:linear-gradient(90deg,transparent,var(--mg),var(--cy),transparent);
+  opacity:0.4;
+}
+#footer-clock{color:var(--cy);}
+.footer-warn{color:var(--mg);}
+
+/* ─── LOADING BLINK ─────────────────────────────────────── */
+@keyframes blink{0%,100%{opacity:1;}50%{opacity:0.3;}}
+.blink{animation:blink 1s infinite;}
+
+/* ─── FADE-IN on load ───────────────────────────────────── */
+.card{
+  opacity:0;
+  animation:fadeUp 0.5s ease forwards;
+}
+.card:nth-child(1){animation-delay:0.05s;}
+.card:nth-child(2){animation-delay:0.15s;}
+.card:nth-child(3){animation-delay:0.25s;}
+.card:nth-child(4){animation-delay:0.35s;}
+.card:nth-child(5){animation-delay:0.45s;}
+@keyframes fadeUp{
+  from{opacity:0;transform:translateY(16px);}
+  to  {opacity:1;transform:translateY(0);}
+}
+</style>
+</head>
+<body>
+<div class="wrap">
+
+<!-- ══ HEADER ════════════════════════════════════════════ -->
+<header>
+  <div class="site-tag">// OWASP Juice Shop // Security Research Tool //</div>
+  <div class="site-name" data-text="JUICE SHOP">JUICE SHOP</div>
+  <div class="site-sub">Vulnerability Scanner</div>
+
+  <div class="badges">
+    <span class="pill active-pill">● System Online</span>
+    <span class="pill">Target: localhost:3000</span>
+    <span class="pill">5 Modules</span>
+    <span class="pill">Kali Linux</span>
+  </div>
+</header>
+
+<div class="divider"><span>attack modules</span></div>
+
+<!-- ══ CARD GRID ══════════════════════════════════════════ -->
+<div class="grid">
+
+  <!-- ───────────────────────────────────────────────────
+       CARD 1 — EPHEMERAL ACCOUNTANT
+  ──────────────────────────────────────────────────────── -->
+  <div class="card">
+    <div class="card-head">
+      <div class="card-icon">👻</div>
+      <div class="card-info">
+        <div class="card-num">MODULE // 01</div>
+        <div class="card-title">EPHEMERAL ACCOUNTANT</div>
+        <div class="card-type">SQL Injection → Hidden User Login</div>
+      </div>
+    </div>
+    <div class="card-body">
+      <div class="card-desc">
+        Logs in as hidden user <code>J12934@juice-sh.op</code> using
+        SQL Injection payload <code>'--</code> to bypass the password
+        check entirely. No credentials required.
+      </div>
+
+      <div class="field">
+        <label>Target URL</label>
+        <input type="text" id="ea-target" value="http://localhost:3000"/>
+      </div>
+
+      <button class="exec-btn" id="ea-btn" onclick="runEphemeral(this)">
+        <span>▶ Execute Attack</span>
+      </button>
+
+      <div class="terminal">
+        <div class="term-bar">
+          <div class="term-dots">
+            <div class="td r"></div><div class="td y"></div><div class="td g"></div>
+          </div>
+          <span class="term-label">OUTPUT</span>
+          <span class="term-status" id="ea-status">IDLE</span>
+        </div>
+        <div class="term-out" id="ea-out">// Awaiting execution...</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ───────────────────────────────────────────────────
+       CARD 2 — ERROR HANDLING
+  ──────────────────────────────────────────────────────── -->
+  <div class="card">
+    <div class="card-head">
+      <div class="card-icon">⚠️</div>
+      <div class="card-info">
+        <div class="card-num">MODULE // 02</div>
+        <div class="card-title">ERROR HANDLING</div>
+        <div class="card-type">Information Disclosure → Stack Trace Leak</div>
+      </div>
+    </div>
+    <div class="card-body">
+      <div class="card-desc">
+        Probes malformed API endpoints to trigger unhandled Node.js /
+        Sequelize errors. Exposes internal <code>stack traces</code>,
+        file paths, and DB schema details.
+      </div>
+
+      <div class="field">
+        <label>Target URL</label>
+        <input type="text" id="eh-target" value="http://localhost:3000"/>
+      </div>
+
+      <button class="exec-btn" id="eh-btn" onclick="runErrorHandling(this)">
+        <span>▶ Execute Attack</span>
+      </button>
+
+      <div class="terminal">
+        <div class="term-bar">
+          <div class="term-dots">
+            <div class="td r"></div><div class="td y"></div><div class="td g"></div>
+          </div>
+          <span class="term-label">OUTPUT</span>
+          <span class="term-status" id="eh-status">IDLE</span>
+        </div>
+        <div class="term-out" id="eh-out">// Awaiting execution...</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ───────────────────────────────────────────────────
+       CARD 3 — PASSWORD STRENGTH
+  ──────────────────────────────────────────────────────── -->
+  <div class="card">
+    <div class="card-head">
+      <div class="card-icon">🔑</div>
+      <div class="card-info">
+        <div class="card-num">MODULE // 03</div>
+        <div class="card-title">PASSWORD STRENGTH</div>
+        <div class="card-type">Brute Force → Weak Credential Crack</div>
+      </div>
+    </div>
+    <div class="card-body">
+      <div class="card-desc">
+        Brute-forces <code>admin@juice-sh.op</code> using a dictionary
+        of common weak passwords. Cracks the account and returns a
+        valid Bearer token for further exploitation.
+      </div>
+
+      <div class="field">
+        <label>Target URL</label>
+        <input type="text" id="ps-target" value="http://localhost:3000"/>
+      </div>
+
+      <button class="exec-btn" id="ps-btn" onclick="runPasswordStrength(this)">
+        <span>▶ Execute Attack</span>
+      </button>
+
+      <div class="terminal">
+        <div class="term-bar">
+          <div class="term-dots">
+            <div class="td r"></div><div class="td y"></div><div class="td g"></div>
+          </div>
+          <span class="term-label">OUTPUT</span>
+          <span class="term-status" id="ps-status">IDLE</span>
+        </div>
+        <div class="term-out" id="ps-out">// Awaiting execution...</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ───────────────────────────────────────────────────
+       CARD 4 — SSTi
+  ──────────────────────────────────────────────────────── -->
+  <div class="card">
+    <div class="card-head">
+      <div class="card-icon">💉</div>
+      <div class="card-info">
+        <div class="card-num">MODULE // 04</div>
+        <div class="card-title">SSTi — TEMPLATE INJECTION</div>
+        <div class="card-type">Server-Side RCE → Pug/Jade Engine</div>
+      </div>
+    </div>
+    <div class="card-body">
+      <div class="card-desc">
+        Injects <code>#{root.process.mainModule...}</code> Pug template
+        payload into the username field. Juice Shop evaluates it
+        server-side, achieving Remote Code Execution.
+      </div>
+
+      <div class="field">
+        <label>Target URL</label>
+        <input type="text" id="ssti-target" value="http://localhost:3000"/>
+      </div>
+      <div class="field">
+        <label>Auth Token (optional — auto-logins as admin if blank)</label>
+        <input type="text" id="ssti-token" placeholder="Bearer token..."/>
+      </div>
+
+      <button class="exec-btn" id="ssti-btn" onclick="runSSTI(this)">
+        <span>▶ Execute Attack</span>
+      </button>
+
+      <div class="terminal">
+        <div class="term-bar">
+          <div class="term-dots">
+            <div class="td r"></div><div class="td y"></div><div class="td g"></div>
+          </div>
+          <span class="term-label">OUTPUT</span>
+          <span class="term-status" id="ssti-status">IDLE</span>
+        </div>
+        <div class="term-out" id="ssti-out">// Awaiting execution...</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ───────────────────────────────────────────────────
+       CARD 5 — VIDEO XSS
+  ──────────────────────────────────────────────────────── -->
+  <div class="card">
+    <div class="card-head">
+      <div class="card-icon">🎬</div>
+      <div class="card-info">
+        <div class="card-num">MODULE // 05</div>
+        <div class="card-title">VIDEO XSS</div>
+        <div class="card-type">Cross-Site Scripting → Subtitle Track Injection</div>
+      </div>
+    </div>
+    <div class="card-body">
+      <div class="card-desc">
+        Exploits the <code>/promotion</code> promo video's closed-caption
+        track. Injects an XSS payload via the subtitle URL — fires when
+        the CC button is clicked in the video player.
+      </div>
+
+      <div class="field">
+        <label>Target URL</label>
+        <input type="text" id="vxss-target" value="http://localhost:3000"/>
+      </div>
+      <div class="field">
+        <label>Auth Token (optional — auto-logins as admin if blank)</label>
+        <input type="text" id="vxss-token" placeholder="Bearer token..."/>
+      </div>
+
+      <button class="exec-btn" id="vxss-btn" onclick="runVideoXSS(this)">
+        <span>▶ Execute Attack</span>
+      </button>
+
+      <div class="terminal">
+        <div class="term-bar">
+          <div class="term-dots">
+            <div class="td r"></div><div class="td y"></div><div class="td g"></div>
+          </div>
+          <span class="term-label">OUTPUT</span>
+          <span class="term-status" id="vxss-status">IDLE</span>
+        </div>
+        <div class="term-out" id="vxss-out">// Awaiting execution...</div>
+      </div>
+
+      <!-- Manual steps shown after scan -->
+      <div class="steps-box" id="vxss-steps-box">
+        <h4>// Manual Steps to Trigger XSS</h4>
+        <ol id="vxss-steps-list"></ol>
+      </div>
+    </div>
+  </div>
+
+</div><!-- /grid -->
+
+<!-- ══ FOOTER ════════════════════════════════════════════ -->
+<footer>
+  <span>JUICE SHOP VULNERABILITY SCANNER // CNS PROJECT</span>
+  <span id="footer-clock"></span>
+  <span class="footer-warn">⚠ AUTHORIZED USE ONLY</span>
+</footer>
+
+</div><!-- /wrap -->
+
+<!-- ══ JAVASCRIPT ════════════════════════════════════════ -->
+<script>
+
+/* ── Clock ───────────────────────────────────────────── */
+function tick(){
+  const now = new Date();
+  document.getElementById('footer-clock').textContent =
+    now.toLocaleTimeString('en-GB') + ' // ' + now.toLocaleDateString('en-GB');
+}
+tick(); setInterval(tick,1000);
+
+/* ── Helper: set terminal state ──────────────────────── */
+function setTerminal(id, state, text){
+  const out    = document.getElementById(id+'-out');
+  const status = document.getElementById(id+'-status');
+  out.className    = 'term-out ' + state;
+  status.className = 'term-status ' + state;
+  const labels = {running:'SCANNING',ok:'SUCCESS',fail:'FAILED',''  :'IDLE'};
+  status.textContent = labels[state] || 'IDLE';
+  out.textContent    = text;
+}
+
+/* ── Helper: lock/unlock button ──────────────────────── */
+function lock(btn, on){
+  btn.disabled    = on;
+  btn.querySelector('span').textContent = on ? '⏳ Running...' : '▶ Execute Attack';
+}
+
+/* ── Helper: pretty-print JSON result ───────────────── */
+function pretty(json){ return JSON.stringify(json, null, 2); }
+
+/* ────────────────────────────────────────────────────────
+   1. EPHEMERAL ACCOUNTANT
+──────────────────────────────────────────────────────── */
+async function runEphemeral(btn){
+  const target = document.getElementById('ea-target').value;
+  lock(btn, true);
+  setTerminal('ea','running','⏳ Injecting SQL payload → J12934@juice-sh.op\'--\nConnecting to target...');
+
+  try{
+    const res  = await fetch('/scan/ephemeral-accountant',{
+      method:'POST',
+      headers:{'Content-Type':'application/json'},
+      body: JSON.stringify({target})
+    });
+    const json = await res.json();
+    const state = json.status === 'success' ? 'ok' : 'fail';
+    setTerminal('ea', state, pretty(json));
+  }catch(err){
+    setTerminal('ea','fail','❌ Fetch error: '+err.message);
+  }finally{
+    lock(btn, false);
+  }
+}
+
+/* ────────────────────────────────────────────────────────
+   2. ERROR HANDLING
+──────────────────────────────────────────────────────── */
+async function runErrorHandling(btn){
+  const target = document.getElementById('eh-target').value;
+  lock(btn, true);
+  setTerminal('eh','running','⏳ Probing endpoints...\n→ /api/Quantitys/\n→ /rest/user/authentication-details/\n→ /api/Users/1337');
+
+  try{
+    const res  = await fetch('/scan/error-handling',{
+      method:'POST',
+      headers:{'Content-Type':'application/json'},
+      body: JSON.stringify({target})
+    });
+    const json = await res.json();
+    const state = json.status === 'success' ? 'ok' : 'fail';
+    setTerminal('eh', state, pretty(json));
+  }catch(err){
+    setTerminal('eh','fail','❌ Fetch error: '+err.message);
+  }finally{
+    lock(btn, false);
+  }
+}
+
+/* ────────────────────────────────────────────────────────
+   3. PASSWORD STRENGTH
+──────────────────────────────────────────────────────── */
+async function runPasswordStrength(btn){
+  const target = document.getElementById('ps-target').value;
+  lock(btn, true);
+  setTerminal('ps','running','⏳ Brute-forcing admin@juice-sh.op...\nTrying: admin123 / admin / password / 123456 ...');
+
+  try{
+    const res  = await fetch('/scan/password-strength',{
+      method:'POST',
+      headers:{'Content-Type':'application/json'},
+      body: JSON.stringify({target})
+    });
+    const json = await res.json();
+    const state = json.status === 'success' ? 'ok' : 'fail';
+    setTerminal('ps', state, pretty(json));
+  }catch(err){
+    setTerminal('ps','fail','❌ Fetch error: '+err.message);
+  }finally{
+    lock(btn, false);
+  }
+}
+
+/* ────────────────────────────────────────────────────────
+   4. SSTi
+──────────────────────────────────────────────────────── */
+async function runSSTI(btn){
+  const target = document.getElementById('ssti-target').value;
+  const token  = document.getElementById('ssti-token').value;
+  lock(btn, true);
+  setTerminal('ssti','running','⏳ Injecting Pug template payload...\n#{root.process.mainModule.require(\'child_process\').execSync(\'whoami\')}');
+
+  try{
+    const res  = await fetch('/scan/ssti',{
+      method:'POST',
+      headers:{'Content-Type':'application/json'},
+      body: JSON.stringify({target, token})
+    });
+    const json = await res.json();
+    const state = json.status === 'success' ? 'ok' : 'fail';
+    setTerminal('ssti', state, pretty(json));
+  }catch(err){
+    setTerminal('ssti','fail','❌ Fetch error: '+err.message);
+  }finally{
+    lock(btn, false);
+  }
+}
+
+/* ────────────────────────────────────────────────────────
+   5. VIDEO XSS
+──────────────────────────────────────────────────────── */
+async function runVideoXSS(btn){
+  const target = document.getElementById('vxss-target').value;
+  const token  = document.getElementById('vxss-token').value;
+  const stepsBox  = document.getElementById('vxss-steps-box');
+  const stepsList = document.getElementById('vxss-steps-list');
+  lock(btn, true);
+  setTerminal('vxss','running','⏳ Injecting XSS payload into video track...\n<iframe src="javascript:alert(\'xss\')">');
+
+  try{
+    const res  = await fetch('/scan/video-xss',{
+      method:'POST',
+      headers:{'Content-Type':'application/json'},
+      body: JSON.stringify({target, token})
+    });
+    const json = await res.json();
+    const state = json.status === 'success' ? 'ok' : 'fail';
+    setTerminal('vxss', state, pretty(json));
+
+    if(json.manual_steps && json.manual_steps.length){
+      stepsList.innerHTML = '';
+      json.manual_steps.forEach(s=>{
+        const li = document.createElement('li');
+        li.textContent = s;
+        stepsList.appendChild(li);
+      });
+      stepsBox.style.display = 'block';
+    }
+  }catch(err){
+    setTerminal('vxss','fail','❌ Fetch error: '+err.message);
+  }finally{
+    lock(btn, false);
+  }
+}
+</script>
+</body>
+</html>
