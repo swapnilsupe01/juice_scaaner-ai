@@ -1,0 +1,34 @@
+version: '3.8'
+
+services:
+  # 1. OWASP Juice Shop (Node.js / Angular)
+  juice-shop:
+    image: bkimminich/juice-shop
+    container_name: juicescanner-juiceshop
+    ports:
+      - "3000:3000"
+    restart: unless-stopped
+
+  # 2. bWAPP (PHP / MySQL)
+  bwapp:
+    image: raesene/bwapp
+    container_name: juicescanner-bwapp
+    ports:
+      - "8080:80"
+    restart: unless-stopped
+
+  # 3. DVWA - Damn Vulnerable Web App (PHP / Apache)
+  dvwa:
+    image: vulnerables/web-dvwa
+    container_name: juicescanner-dvwa
+    ports:
+      - "8081:80"
+    restart: unless-stopped
+
+  # 4. OWASP Mutillidae II (PHP / MySQL)
+  mutillidae:
+    image: citizeninsight/mutillidae
+    container_name: juicescanner-mutillidae
+    ports:
+      - "8082:80"
+    restart: unless-stopped
