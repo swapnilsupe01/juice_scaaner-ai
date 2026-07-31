@@ -1,0 +1,602 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>Juice Shop Vulnerability Scanner</title>
+  <link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@400;700;900&family=Share+Tech+Mono&display=swap" rel="stylesheet"/>
+  <style>
+    :root {
+      --bg: #060d14;
+      --panel: #0a1622;
+      --border: rgba(0,200,255,0.15);
+      --accent: #00c8ff;
+      --red: #ff4455;
+      --green: #00ff88;
+      --yellow: #ffcc00;
+      --orange: #ff8800;
+      --purple: #cc44ff;
+      --text: #b0d8e8;
+      --dim: #3a6070;
+    }
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      background: var(--bg);
+      color: var(--text);
+      font-family: 'Share Tech Mono', monospace;
+      min-height: 100vh;
+    }
+    body::before {
+      content: '';
+      position: fixed; inset: 0;
+      background-image:
+        linear-gradient(rgba(0,200,255,0.025) 1px, transparent 1px),
+        linear-gradient(90deg, rgba(0,200,255,0.025) 1px, transparent 1px);
+      background-size: 50px 50px;
+      pointer-events: none; z-index: 0;
+    }
+
+    /* ── Header ── */
+    header {
+      position: relative; z-index: 1;
+      background: linear-gradient(180deg, #0a1e30 0%, transparent 100%);
+      border-bottom: 1px solid var(--border);
+      padding: 24px 32px;
+      display: flex; align-items: center; gap: 20px;
+    }
+    .logo {
+      font-family: 'Orbitron', monospace;
+      font-size: 22px; font-weight: 900;
+      color: var(--accent);
+      text-shadow: 0 0 20px var(--accent);
+      letter-spacing: 3px;
+      line-height: 1.1;
+    }
+    .logo span { color: var(--red); }
+    .logo-sub {
+      font-size: 10px; letter-spacing: 4px;
+      color: var(--dim); text-transform: uppercase;
+      margin-top: 4px;
+    }
+    .header-badge {
+      margin-left: auto;
+      padding: 6px 14px;
+      border: 1px solid var(--red);
+      color: var(--red);
+      font-size: 10px; letter-spacing: 2px;
+      text-transform: uppercase;
+      animation: blink 2s step-end infinite;
+    }
+    @keyframes blink { 50% { opacity: 0; } }
+
+    /* ── Layout ── */
+    .layout {
+      position: relative; z-index: 1;
+      display: grid;
+      grid-template-columns: 260px 1fr;
+      min-height: calc(100vh - 80px);
+    }
+
+    /* ── Sidebar ── */
+    .sidebar {
+      background: var(--panel);
+      border-right: 1px solid var(--border);
+      padding: 24px 0;
+    }
+    .sidebar-title {
+      font-size: 10px; letter-spacing: 3px;
+      color: var(--dim); text-transform: uppercase;
+      padding: 0 20px 16px;
+      border-bottom: 1px solid var(--border);
+      margin-bottom: 8px;
+    }
+    .tab-btn {
+      width: 100%;
+      background: none; border: none;
+      padding: 14px 20px;
+      display: flex; align-items: center; gap: 12px;
+      cursor: pointer;
+      transition: background 0.2s;
+      border-left: 3px solid transparent;
+      text-align: left;
+    }
+    .tab-btn:hover { background: rgba(0,200,255,0.05); }
+    .tab-btn.active {
+      background: rgba(0,200,255,0.08);
+      border-left-color: var(--accent);
+    }
+    .tab-icon { font-size: 20px; flex-shrink: 0; }
+    .tab-info { flex: 1; }
+    .tab-name {
+      font-family: 'Orbitron', monospace;
+      font-size: 11px; font-weight: 700;
+      color: var(--text); letter-spacing: 1px;
+      line-height: 1.3;
+    }
+    .tab-btn.active .tab-name { color: var(--accent); }
+    .tab-cat {
+      font-size: 10px; color: var(--dim);
+      margin-top: 3px; letter-spacing: 1px;
+    }
+    .tab-stars { font-size: 10px; margin-top: 2px; }
+
+    /* ── Config Panel ── */
+    .config-bar {
+      background: rgba(0,200,255,0.03);
+      border-bottom: 1px solid var(--border);
+      padding: 16px 28px;
+      display: flex; gap: 16px; align-items: flex-end;
+      flex-wrap: wrap;
+    }
+    .config-group { display: flex; flex-direction: column; gap: 6px; flex: 1; min-width: 160px; }
+    .config-label { font-size: 10px; letter-spacing: 2px; color: var(--dim); text-transform: uppercase; }
+    .config-input {
+      background: #060d14;
+      border: 1px solid var(--border);
+      color: var(--accent);
+      font-family: 'Share Tech Mono', monospace;
+      font-size: 13px;
+      padding: 10px 14px;
+      border-radius: 3px; outline: none;
+      transition: border-color 0.2s;
+      width: 100%;
+    }
+    .config-input:focus { border-color: var(--accent); box-shadow: 0 0 12px rgba(0,200,255,0.1); }
+    .config-input::placeholder { color: var(--dim); }
+
+    /* ── Main Content ── */
+    .main { overflow-y: auto; }
+    .tab-content { display: none; padding: 28px; }
+    .tab-content.active { display: block; }
+
+    /* ── Tab Header ── */
+    .vuln-header {
+      display: flex; align-items: flex-start;
+      justify-content: space-between; gap: 20px;
+      margin-bottom: 24px; flex-wrap: wrap;
+    }
+    .vuln-title {
+      font-family: 'Orbitron', monospace;
+      font-size: 20px; font-weight: 900;
+      letter-spacing: 2px; line-height: 1.2;
+    }
+    .vuln-desc {
+      font-size: 12px; color: var(--dim);
+      margin-top: 8px; line-height: 1.7;
+      max-width: 600px;
+    }
+    .difficulty {
+      display: flex; flex-direction: column;
+      align-items: flex-end; gap: 4px; flex-shrink: 0;
+    }
+    .diff-label { font-size: 10px; letter-spacing: 2px; color: var(--dim); }
+    .diff-stars { font-size: 16px; }
+
+    /* ── Scan Button ── */
+    .scan-btn {
+      width: 100%;
+      padding: 15px;
+      background: transparent;
+      border: 2px solid var(--accent);
+      color: var(--accent);
+      font-family: 'Orbitron', monospace;
+      font-size: 14px; font-weight: 700;
+      letter-spacing: 3px; text-transform: uppercase;
+      cursor: pointer; border-radius: 3px;
+      position: relative; overflow: hidden;
+      transition: color 0.3s;
+      margin-bottom: 24px;
+    }
+    .scan-btn::before {
+      content: ''; position: absolute; inset: 0;
+      background: var(--accent);
+      transform: translateX(-100%);
+      transition: transform 0.3s ease; z-index: 0;
+    }
+    .scan-btn:hover::before { transform: translateX(0); }
+    .scan-btn:hover { color: var(--bg); }
+    .scan-btn span { position: relative; z-index: 1; }
+    .scan-btn:disabled { border-color: var(--dim); color: var(--dim); cursor: not-allowed; }
+    .scan-btn:disabled::before { display: none; }
+
+    /* ── Loading ── */
+    .loading {
+      display: none; text-align: center;
+      padding: 20px; color: var(--accent);
+      font-size: 12px; letter-spacing: 3px;
+      margin-bottom: 24px;
+    }
+    .loader-bar { height: 2px; background: var(--border); margin-top: 12px; overflow: hidden; }
+    .loader-fill {
+      height: 100%; background: var(--accent);
+      box-shadow: 0 0 10px var(--accent);
+      animation: load 1.8s ease-in-out infinite;
+    }
+    @keyframes load {
+      0% { width: 0%; margin-left: 0; }
+      50% { width: 60%; margin-left: 0; }
+      100% { width: 0%; margin-left: 100%; }
+    }
+
+    /* ── Verdict ── */
+    .verdict {
+      display: none; padding: 20px;
+      text-align: center; border-radius: 4px;
+      font-family: 'Orbitron', monospace;
+      font-size: 18px; font-weight: 700;
+      letter-spacing: 3px; text-transform: uppercase;
+      margin-bottom: 20px;
+    }
+    .verdict.vulnerable {
+      background: rgba(255,68,85,0.1);
+      border: 2px solid var(--red); color: var(--red);
+      text-shadow: 0 0 15px var(--red);
+      animation: danger 1s ease-in-out infinite;
+    }
+    @keyframes danger {
+      0%,100% { box-shadow: 0 0 20px rgba(255,68,85,0.2); }
+      50% { box-shadow: 0 0 40px rgba(255,68,85,0.5); }
+    }
+    .verdict.safe {
+      background: rgba(0,255,136,0.06);
+      border: 2px solid var(--green); color: var(--green);
+      text-shadow: 0 0 15px var(--green);
+    }
+
+    /* ── Meta ── */
+    .meta { display: flex; gap: 20px; margin-bottom: 16px; flex-wrap: wrap; }
+    .meta span { font-size: 11px; color: var(--dim); display: flex; align-items: center; gap: 6px; }
+
+    /* ── Test Cards ── */
+    .test-card {
+      border: 1px solid var(--border);
+      border-radius: 4px; padding: 16px 20px;
+      margin-bottom: 10px;
+      display: flex; align-items: flex-start; gap: 14px;
+      animation: slideIn 0.35s ease forwards;
+      opacity: 0; transform: translateY(8px);
+    }
+    @keyframes slideIn { to { opacity: 1; transform: translateY(0); } }
+    .test-card.vulnerable { border-color: rgba(255,68,85,0.5); background: rgba(255,68,85,0.04); }
+    .test-card.pass { border-color: rgba(0,255,136,0.25); background: rgba(0,255,136,0.02); }
+    .test-card.fail { border-color: rgba(255,204,0,0.25); background: rgba(255,204,0,0.02); }
+    .status-icon { font-size: 20px; flex-shrink: 0; margin-top: 2px; }
+    .test-name {
+      font-family: 'Orbitron', monospace;
+      font-size: 13px; font-weight: 700;
+      margin-bottom: 5px; letter-spacing: 0.5px;
+    }
+    .test-card.vulnerable .test-name { color: var(--red); }
+    .test-card.pass .test-name { color: var(--green); }
+    .test-card.fail .test-name { color: var(--yellow); }
+    .test-detail { font-size: 11px; color: var(--dim); line-height: 1.6; }
+
+    /* ── Info Box ── */
+    .info-box {
+      background: rgba(0,200,255,0.03);
+      border: 1px solid var(--border);
+      border-radius: 4px; padding: 20px;
+      margin-bottom: 24px;
+    }
+    .info-box h3 {
+      font-family: 'Orbitron', monospace;
+      font-size: 11px; letter-spacing: 3px;
+      color: var(--accent); margin-bottom: 12px;
+    }
+    .info-box p { font-size: 12px; color: var(--dim); line-height: 1.8; }
+    .info-box code {
+      background: rgba(0,200,255,0.08);
+      padding: 1px 6px; border-radius: 2px;
+      color: var(--accent); font-size: 11px;
+    }
+  </style>
+</head>
+<body>
+
+<header>
+  <div>
+    <div class="logo">JUICE<span>SCANNER</span></div>
+    <div class="logo-sub">OWASP Juice Shop Vulnerability Scanner</div>
+  </div>
+  <div class="header-badge">⚠ Educational Only</div>
+</header>
+
+<!-- Config Bar -->
+<div class="config-bar">
+  <div class="config-group">
+    <div class="config-label">Target URL</div>
+    <input class="config-input" id="g-target" value="http://localhost:3000" placeholder="http://localhost:3000"/>
+  </div>
+  <div class="config-group">
+    <div class="config-label">Email</div>
+    <input class="config-input" id="g-email" placeholder="admin@juice-sh.op"/>
+  </div>
+  <div class="config-group">
+    <div class="config-label">Password</div>
+    <input class="config-input" id="g-password" type="password" placeholder="admin123"/>
+  </div>
+</div>
+
+<div class="layout">
+
+  <!-- Sidebar -->
+  <div class="sidebar">
+    <div class="sidebar-title">// Vulnerability Modules</div>
+    <button class="tab-btn active" onclick="switchTab('csrf')">
+      <div class="tab-icon">🔄</div>
+      <div class="tab-info">
+        <div class="tab-name">CSRF Change Password</div>
+        <div class="tab-cat">Broken Access Control</div>
+        <div class="tab-stars">⭐⭐⭐</div>
+      </div>
+    </button>
+    <button class="tab-btn" onclick="switchTab('basket')">
+      <div class="tab-icon">🛒</div>
+      <div class="tab-info">
+        <div class="tab-name">View User's Basket</div>
+        <div class="tab-cat">Broken Access Control</div>
+        <div class="tab-stars">⭐⭐⭐⭐</div>
+      </div>
+    </button>
+    <button class="tab-btn" onclick="switchTab('admin')">
+      <div class="tab-icon">👑</div>
+      <div class="tab-info">
+        <div class="tab-name">Access Admin Section</div>
+        <div class="tab-cat">Broken Access Control</div>
+        <div class="tab-stars">⭐⭐⭐⭐</div>
+      </div>
+    </button>
+    <button class="tab-btn" onclick="switchTab('captcha')">
+      <div class="tab-icon">🤖</div>
+      <div class="tab-info">
+        <div class="tab-name">CAPTCHA Bypass</div>
+        <div class="tab-cat">Broken Anti-Automation</div>
+        <div class="tab-stars">⭐⭐⭐⭐</div>
+      </div>
+    </button>
+    <button class="tab-btn" onclick="switchTab('feedback')">
+      <div class="tab-icon">💬</div>
+      <div class="tab-info">
+        <div class="tab-name">Customer Feedback</div>
+        <div class="tab-cat">Broken Anti-Automation</div>
+        <div class="tab-stars">⭐⭐⭐⭐</div>
+      </div>
+    </button>
+    <button class="tab-btn" onclick="switchTab('language')">
+      <div class="tab-icon">🌐</div>
+      <div class="tab-info">
+        <div class="tab-name">Extra Language</div>
+        <div class="tab-cat">Broken Anti-Automation</div>
+        <div class="tab-stars">⭐⭐⭐⭐⭐</div>
+      </div>
+    </button>
+  </div>
+
+  <!-- Main -->
+  <div class="main">
+
+    <!-- ── TAB 1: CSRF ── -->
+    <div class="tab-content active" id="tab-csrf">
+      <div class="vuln-header">
+        <div>
+          <div class="vuln-title" style="color:var(--red)">CSRF — Change Password</div>
+          <div class="vuln-desc">Tests if the password change endpoint is vulnerable to Cross-Site Request Forgery. An attacker can trick a logged-in user into changing their password by sending a forged request from a malicious website.</div>
+        </div>
+        <div class="difficulty">
+          <div class="diff-label">Difficulty</div>
+          <div class="diff-stars">⭐⭐⭐</div>
+        </div>
+      </div>
+      <div class="info-box">
+        <h3>// HOW THIS ATTACK WORKS</h3>
+        <p>Attacker hosts a page at <code>evil.com</code> with a hidden request to <code>/rest/user/change-password</code>. When victim visits that page while logged in, the browser automatically sends their auth cookie — server accepts it and changes the password.</p>
+      </div>
+      <button class="scan-btn" id="btn-csrf" onclick="runScan('csrf')"><span>⚡ Run CSRF Scan</span></button>
+      <div class="loading" id="load-csrf">[ SCANNING... ]<div class="loader-bar"><div class="loader-fill"></div></div></div>
+      <div class="verdict" id="verdict-csrf"></div>
+      <div class="meta" id="meta-csrf"></div>
+      <div id="cards-csrf"></div>
+    </div>
+
+    <!-- ── TAB 2: BASKET ── -->
+    <div class="tab-content" id="tab-basket">
+      <div class="vuln-header">
+        <div>
+          <div class="vuln-title" style="color:var(--orange)">View Another User's Basket</div>
+          <div class="vuln-desc">Tests for Insecure Direct Object Reference (IDOR). The app fails to verify if the logged-in user owns the basket they are requesting, allowing access to any user's basket by changing the basket ID.</div>
+        </div>
+        <div class="difficulty">
+          <div class="diff-label">Difficulty</div>
+          <div class="diff-stars">⭐⭐⭐⭐</div>
+        </div>
+      </div>
+      <div class="info-box">
+        <h3>// HOW THIS ATTACK WORKS</h3>
+        <p>API endpoint <code>/rest/basket/{id}</code> accepts any basket ID. No check is done to verify if the requesting user owns that basket. Attacker simply iterates IDs to view other users' shopping carts.</p>
+      </div>
+      <button class="scan-btn" id="btn-basket" onclick="runScan('basket')"><span>⚡ Run IDOR Scan</span></button>
+      <div class="loading" id="load-basket">[ SCANNING... ]<div class="loader-bar"><div class="loader-fill"></div></div></div>
+      <div class="verdict" id="verdict-basket"></div>
+      <div class="meta" id="meta-basket"></div>
+      <div id="cards-basket"></div>
+    </div>
+
+    <!-- ── TAB 3: ADMIN ── -->
+    <div class="tab-content" id="tab-admin">
+      <div class="vuln-header">
+        <div>
+          <div class="vuln-title" style="color:var(--purple)">Access Admin Section</div>
+          <div class="vuln-desc">Tests if admin-only pages and APIs are accessible to regular users. Broken access control allows non-admin users to reach administration panels and sensitive user data.</div>
+        </div>
+        <div class="difficulty">
+          <div class="diff-label">Difficulty</div>
+          <div class="diff-stars">⭐⭐⭐⭐</div>
+        </div>
+      </div>
+      <div class="info-box">
+        <h3>// HOW THIS ATTACK WORKS</h3>
+        <p>Admin routes like <code>/administration</code> and <code>/api/Users</code> are not properly protected. Any authenticated user can access them by directly navigating to the URL — no admin role check is enforced by the server.</p>
+      </div>
+      <button class="scan-btn" id="btn-admin" onclick="runScan('admin')"><span>⚡ Run Admin Access Scan</span></button>
+      <div class="loading" id="load-admin">[ SCANNING... ]<div class="loader-bar"><div class="loader-fill"></div></div></div>
+      <div class="verdict" id="verdict-admin"></div>
+      <div class="meta" id="meta-admin"></div>
+      <div id="cards-admin"></div>
+    </div>
+
+    <!-- ── TAB 4: CAPTCHA ── -->
+    <div class="tab-content" id="tab-captcha">
+      <div class="vuln-header">
+        <div>
+          <div class="vuln-title" style="color:var(--yellow)">CAPTCHA Bypass</div>
+          <div class="vuln-desc">Tests if the CAPTCHA implementation can be bypassed. The server sends the CAPTCHA answer in the API response itself, and the same CAPTCHA can be reused multiple times.</div>
+        </div>
+        <div class="difficulty">
+          <div class="diff-label">Difficulty</div>
+          <div class="diff-stars">⭐⭐⭐⭐</div>
+        </div>
+      </div>
+      <div class="info-box">
+        <h3>// HOW THIS ATTACK WORKS</h3>
+        <p>Juice Shop's CAPTCHA endpoint <code>/rest/captcha/</code> returns the answer along with the question. An automated tool reads the answer directly and submits it — completely bypassing the CAPTCHA's purpose. Also the same CAPTCHA ID can be reused.</p>
+      </div>
+      <button class="scan-btn" id="btn-captcha" onclick="runScan('captcha')"><span>⚡ Run CAPTCHA Bypass Scan</span></button>
+      <div class="loading" id="load-captcha">[ SCANNING... ]<div class="loader-bar"><div class="loader-fill"></div></div></div>
+      <div class="verdict" id="verdict-captcha"></div>
+      <div class="meta" id="meta-captcha"></div>
+      <div id="cards-captcha"></div>
+    </div>
+
+    <!-- ── TAB 5: FEEDBACK ── -->
+    <div class="tab-content" id="tab-feedback">
+      <div class="vuln-header">
+        <div>
+          <div class="vuln-title" style="color:var(--green)">Customer Feedback Spam</div>
+          <div class="vuln-desc">Tests if the feedback endpoint has rate limiting or bot protection. Without it, an attacker can flood the feedback system with automated submissions.</div>
+        </div>
+        <div class="difficulty">
+          <div class="diff-label">Difficulty</div>
+          <div class="diff-stars">⭐⭐⭐⭐</div>
+        </div>
+      </div>
+      <div class="info-box">
+        <h3>// HOW THIS ATTACK WORKS</h3>
+        <p>The <code>/api/Feedbacks/</code> endpoint has no rate limiting. A bot can rapidly submit hundreds of feedback entries — spamming reviews, flooding the database, or manipulating ratings — without any detection or blocking.</p>
+      </div>
+      <button class="scan-btn" id="btn-feedback" onclick="runScan('feedback')"><span>⚡ Run Anti-Automation Scan</span></button>
+      <div class="loading" id="load-feedback">[ SCANNING... ]<div class="loader-bar"><div class="loader-fill"></div></div></div>
+      <div class="verdict" id="verdict-feedback"></div>
+      <div class="meta" id="meta-feedback"></div>
+      <div id="cards-feedback"></div>
+    </div>
+
+    <!-- ── TAB 6: LANGUAGE ── -->
+    <div class="tab-content" id="tab-language">
+      <div class="vuln-header">
+        <div>
+          <div class="vuln-title" style="color:var(--accent)">Extra Language Discovery</div>
+          <div class="vuln-desc">Tests for exposed hidden language files. Juice Shop contains a secret Klingon language translation file that reveals a hidden feature — discoverable through directory enumeration.</div>
+        </div>
+        <div class="difficulty">
+          <div class="diff-label">Difficulty</div>
+          <div class="diff-stars">⭐⭐⭐⭐⭐</div>
+        </div>
+      </div>
+      <div class="info-box">
+        <h3>// HOW THIS ATTACK WORKS</h3>
+        <p>The app serves all translation files under <code>/assets/i18n/</code> publicly. By enumerating known language codes, an attacker discovers <code>tlh.json</code> (Klingon) — a hidden language not shown in the UI, revealing an undocumented feature of the application.</p>
+      </div>
+      <button class="scan-btn" id="btn-language" onclick="runScan('language')"><span>⚡ Run Language Discovery Scan</span></button>
+      <div class="loading" id="load-language">[ SCANNING... ]<div class="loader-bar"><div class="loader-fill"></div></div></div>
+      <div class="verdict" id="verdict-language"></div>
+      <div class="meta" id="meta-language"></div>
+      <div id="cards-language"></div>
+    </div>
+
+  </div><!-- /main -->
+</div><!-- /layout -->
+
+<script>
+  const tabs = ['csrf','basket','admin','captcha','feedback','language'];
+
+  function switchTab(name) {
+    tabs.forEach(t => {
+      document.getElementById('tab-' + t).classList.remove('active');
+      document.querySelectorAll('.tab-btn').forEach((b, i) => {
+        if (tabs[i] === name) b.classList.add('active');
+        else b.classList.remove('active');
+      });
+    });
+    document.getElementById('tab-' + name).classList.add('active');
+  }
+
+  async function runScan(module) {
+    const target   = document.getElementById('g-target').value.trim();
+    const email    = document.getElementById('g-email').value.trim();
+    const password = document.getElementById('g-password').value.trim();
+
+    if (!target) { alert('Please enter a Target URL'); return; }
+
+    const btn     = document.getElementById('btn-' + module);
+    const loading = document.getElementById('load-' + module);
+    const verdict = document.getElementById('verdict-' + module);
+    const meta    = document.getElementById('meta-' + module);
+    const cards   = document.getElementById('cards-' + module);
+
+    btn.disabled = true;
+    loading.style.display = 'block';
+    verdict.style.display = 'none';
+    cards.innerHTML = '';
+    meta.innerHTML = '';
+
+    try {
+      const res = await fetch(`/scan/${module}`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ target, email, password })
+      });
+      const data = await res.json();
+      renderResults(module, data);
+    } catch (err) {
+      alert('Backend error: ' + err.message);
+    } finally {
+      btn.disabled = false;
+      loading.style.display = 'none';
+    }
+  }
+
+  function renderResults(module, data) {
+    const verdict = document.getElementById('verdict-' + module);
+    const meta    = document.getElementById('meta-' + module);
+    const cards   = document.getElementById('cards-' + module);
+
+    verdict.style.display = 'block';
+    verdict.className = 'verdict ' + (data.vulnerable ? 'vulnerable' : 'safe');
+    verdict.textContent = data.vulnerable
+      ? '🔴 VULNERABLE — EXPLOIT CONFIRMED'
+      : '🟢 NO CRITICAL VULNERABILITIES FOUND';
+
+    meta.innerHTML = `
+      <span>🎯 ${data.target}</span>
+      <span>🕐 ${data.timestamp}</span>
+      <span>📋 ${data.results.length} tests run</span>
+    `;
+
+    const icons = { vulnerable: '🔴', pass: '🟢', fail: '🟡' };
+    data.results.forEach((r, i) => {
+      const card = document.createElement('div');
+      card.className = `test-card ${r.status}`;
+      card.style.animationDelay = `${i * 0.08}s`;
+      card.innerHTML = `
+        <div class="status-icon">${icons[r.status] || '⚪'}</div>
+        <div>
+          <div class="test-name">${r.test}</div>
+          <div class="test-detail">${r.detail}</div>
+        </div>`;
+      cards.appendChild(card);
+    });
+    verdict.scrollIntoView({ behavior: 'smooth' });
+  }
+</script>
+</body>
+</html>
