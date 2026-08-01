@@ -1,0 +1,101 @@
+@import "tailwindcss";
+
+html, body {
+  background-color: #0A0A0A !important;
+  color: #e5e2e1;
+  font-family: 'Inter', sans-serif;
+  overflow-x: hidden;
+  margin: 0;
+  padding: 0;
+}
+
+h1, h2, h3, h4, .font-heading {
+  font-family: 'Sora', sans-serif;
+}
+
+.font-mono-tag {
+  font-family: 'Space Grotesk', monospace;
+}
+
+/* Glassmorphism */
+.glass-panel {
+  background: rgba(18, 18, 18, 0.75);
+  backdrop-filter: blur(16px);
+  -webkit-backdrop-filter: blur(16px);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+}
+
+.glass-card {
+  background: linear-gradient(135deg, rgba(255, 255, 255, 0.05), rgba(255, 255, 255, 0.02));
+  backdrop-filter: blur(12px);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+}
+
+/* Neon Glow Effects */
+.glow-blue {
+  box-shadow: 0 0 25px rgba(0, 209, 255, 0.35);
+}
+
+.glow-violet {
+  box-shadow: 0 0 25px rgba(188, 0, 255, 0.35);
+}
+
+.text-glow-blue {
+  text-shadow: 0 0 12px rgba(0, 209, 255, 0.6);
+}
+
+.text-glow-violet {
+  text-shadow: 0 0 12px rgba(188, 0, 255, 0.6);
+}
+
+/* Cyber Grid Overlay */
+.cyber-grid {
+  background-image: radial-gradient(circle at 2px 2px, rgba(0, 209, 255, 0.12) 1px, transparent 0);
+  background-size: 32px 32px;
+}
+
+/* 3D Stack Layer Transformations */
+.stack-perspective {
+  perspective: 1800px;
+}
+
+.stack-group {
+  transform-style: preserve-3d;
+  transform: rotateX(50deg) rotateZ(-32deg);
+  animation: floatStack 6s ease-in-out infinite;
+}
+
+@keyframes floatStack {
+  0%, 100% {
+    transform: rotateX(50deg) rotateZ(-32deg) translateY(0px);
+  }
+  50% {
+    transform: rotateX(50deg) rotateZ(-32deg) translateY(-18px);
+  }
+}
+
+.stack-layer {
+  transform-style: preserve-3d;
+  transition: all 0.4s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+.stack-layer:hover {
+  transform: translateZ(35px) scale(1.02);
+  border-color: #00D1FF;
+  box-shadow: 0 0 35px rgba(0, 209, 255, 0.3);
+}
+
+/* Custom Scrollbar */
+::-webkit-scrollbar {
+  width: 8px;
+}
+::-webkit-scrollbar-track {
+  background: #0A0A0A;
+}
+::-webkit-scrollbar-thumb {
+  background: #262626;
+  border-radius: 4px;
+}
+::-webkit-scrollbar-thumb:hover {
+  background: #00D1FF;
+}
