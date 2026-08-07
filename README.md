@@ -187,3 +187,7 @@ juice_scaaner-ai/
 * **Docker container port in use**: If port 3000 is occupied, stop existing containers using `docker stop $(docker ps -q)`.
 * **Ollama Offline in Navbar**: Ensure `ollama serve` is running or launch Ollama Desktop from your Windows Start Menu.
 * **FastAPI Port Conflicts**: FastAPI defaults to port `5000`. Ensure no other local service is using port 5000.
+
+
+
+![Project Screenshot](project-dashboard.png)
