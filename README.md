@@ -193,3 +193,5 @@ juice_scaaner-ai/
 ![Project Screenshot](project-dashboard.png)
 
 ![Project Screenshot](5layersecurity.png)
+
+ ![Project Screenshot](securityscanner.png)
